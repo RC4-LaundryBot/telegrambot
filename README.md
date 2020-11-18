@@ -1,7 +1,7 @@
 # NUSCollegeLaundryBot
 Telegram BOT interface for the Laundry Machine Bot Project; 
  made with python-telegram-bot wrapper;
- made for RC4 by RC4Space
+ made for RC4 by Orcatech(RC4Space)
 
 # The Bot
 ## Interface
