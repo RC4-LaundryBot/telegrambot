@@ -41,6 +41,7 @@ ebluediamond = emojize(":small_blue_diamond: ", use_aliases=True)
 etick = emojize(":white_check_mark: ", use_aliases=True)
 ecross = emojize(":x: ", use_aliases=True)
 esoon = emojize(":soon: ", use_aliases=True)
+ehourglass = emojize(":hourglass:", use_aliases=True)
 
 
 # start command initializes:
@@ -83,15 +84,21 @@ def make_status_text(level_number):
     # Get Request to the database backend
     machine_status = requests.get(floor_url).json()
 
+
     for machine_id in MACHINES_INFO:
+        
+        # Get data from back end - time since request/refresh
+        remaining_time = 'mm:ss'
+
         if machine_status[machine_id] == 0:
             status_emoji = etick
         elif machine_status[machine_id] == 1:
             status_emoji = ecross
         else:
-            status_emoji = esoon
+            status_emoji = f'{ehourglass} {remaining_time} |'    
+
         machine_name = MACHINES_INFO[machine_id]
-        laundry_data += '{} {}\n'.format(status_emoji, machine_name)
+        laundry_data += '{}  {}\n'.format(status_emoji, machine_name)
 
     # TODO: This should be the backend server time instead
     current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y %H:%M:%S')
