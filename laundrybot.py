@@ -10,6 +10,8 @@ from emoji import emojize
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 
+from data import MockData
+
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -19,11 +21,12 @@ logger = logging.getLogger(__name__)
 RC_URL = "https://us-central1-rc4laundrybot.cloudfunctions.net/readData/RC4-"
 LAUNDRY_LEVELS = [5, 8, 11, 14, 17]
 MACHINES_INFO = {
-    'washer1': 'Washer 1',
-    'washer2': 'Washer 2',
-    'dryer1': 'Dryer 1',
-    'dryer2': 'Dryer 2'
+    'washer-coin': 'Washer 1',
+    'washer-ezlink': 'Washer 2',
+    'dryer-ezlink': 'Dryer 1',
+    'dryer-coin': 'Dryer 2'
 }
+DATA = MockData()
 
 
 # Building menu for every occasion
@@ -41,6 +44,7 @@ ebluediamond = emojize(":small_blue_diamond: ", use_aliases=True)
 etick = emojize(":white_check_mark: ", use_aliases=True)
 ecross = emojize(":x: ", use_aliases=True)
 esoon = emojize(":soon: ", use_aliases=True)
+ehourglass = emojize(":hourglass:", use_aliases=True)
 
 
 # start command initializes:
@@ -81,17 +85,24 @@ def make_status_text(level_number):
     floor_url = RC_URL + str(level_number)
 
     # Get Request to the database backend
-    machine_status = requests.get(floor_url).json()
+    # machine_status = requests.get(floor_url).json()
 
-    for machine_id in MACHINES_INFO:
-        if machine_status[machine_id] == 0:
+    # Use mock data
+    machine_data = DATA.getStatuses(level_number)
+
+    for machine in machine_data: 
+        # Get data from back end - time since request/refresh
+        remaining_time = 'mm:ss'
+
+        if machine["status"] == 0:
             status_emoji = etick
-        elif machine_status[machine_id] == 1:
+        elif machine["status"] == 1:
             status_emoji = ecross
         else:
-            status_emoji = esoon
-        machine_name = MACHINES_INFO[machine_id]
-        laundry_data += '{} {}\n'.format(status_emoji, machine_name)
+            status_emoji = f'{ehourglass} {remaining_time} |'
+
+        machine_name = machine["type"]
+        laundry_data += '{}  {}\n'.format(status_emoji, machine_name)
 
     # TODO: This should be the backend server time instead
     current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y %H:%M:%S')
