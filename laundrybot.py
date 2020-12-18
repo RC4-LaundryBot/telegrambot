@@ -15,6 +15,7 @@ from sheets import add_response
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR) # Silence oauth2client ImportError
 
 # Initialize global variables
 RC_URL = "https://us-central1-rc4laundrybot.cloudfunctions.net/readData/RC4-"
@@ -179,7 +180,7 @@ def report(bot, update, user_data, from_pinned_level=False, new_message=False):
     )
     return 1
 
-def get_response_ask_consent(bot, update):
+def get_response_ask_consent(bot, update, user_data):
     global user_response
     
     user_input = update.message.text
@@ -201,14 +202,14 @@ def get_response_ask_consent(bot, update):
 
     return 2
 
-def get_consent_end(bot, update):
+def get_consent_end(bot, update, user_data):
     user_input = update.message.text
     query = update.callback_query
 
     if user_input == 'Yes':
         text = 'Huge thanks!\n'
         username = update.message.chat.username
-        level = 'Change to the current level'
+        level = user_data['check_level']
         add_response(username, level, user_response)
     else:
         text = 'Okay, your response was not recorded.\n'
@@ -245,11 +246,10 @@ def main():
     dp.add_handler(ConversationHandler(
         [CallbackQueryHandler(report, pattern="Report", pass_user_data=True)],
         {
-            1 : [MessageHandler(Filters.text, get_response_ask_consent)],
-            2 : [MessageHandler(Filters.text, get_consent_end)]
+            1 : [MessageHandler(Filters.text, get_response_ask_consent, pass_user_data=True)],
+            2 : [MessageHandler(Filters.text, get_consent_end, pass_user_data=True)]
         },
-        []
-    ))
+        []))
     dp.add_error_handler(error)
 
     #updater.start_webhook(listen="0.0.0.0", port=int(PORT), url_path=TOKEN)
