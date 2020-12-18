@@ -116,8 +116,6 @@ def make_status_text(level_number):
 
         if machine["status"] == 0:
             status_emoji = etick
-        elif machine["status"] == 1:
-            status_emoji = ecross
         else:
             status_emoji = f'{ehourglass} {remaining_time} |'
 
