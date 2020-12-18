@@ -11,6 +11,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 
 from data import MockData
+from string import Template
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -79,10 +80,28 @@ def set_pinned_level(bot, update, user_data):
     level_status(bot, update, user_data, from_pinned_level=True)
 
 
+# Generate a Hour Minute Second template
+class DeltaTemplate(Template):
+    delimiter = "%"
+
+# Change from timedelta to H M S format without unecessary microsecond
+def strfdelta(tdelta, fmt):
+    d = {"D": tdelta.days}
+    hours, rem = divmod(tdelta.seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    d["H"] = '{:02d}'.format(hours)
+    d["M"] = '{:02d}'.format(minutes)
+    d["S"] = '{:02d}'.format(seconds)
+    t = DeltaTemplate(fmt)
+    return t.substitute(**d)
+
+
 # Carves the status text for each level
 def make_status_text(level_number):
     laundry_data = ''
     floor_url = RC_URL + str(level_number)
+    # TODO: This should be the backend server time instead
+    current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y %H:%M:%S')
 
     # Get Request to the database backend
     # machine_status = requests.get(floor_url).json()
@@ -92,7 +111,8 @@ def make_status_text(level_number):
 
     for machine in machine_data: 
         # Get data from back end - time since request/refresh
-        remaining_time = 'mm:ss'
+        remaining_time = datetime.today() - machine["start-time"]
+        remaining_time = strfdelta(remaining_time, '%H:%M:%S')
 
         if machine["status"] == 0:
             status_emoji = etick
@@ -103,9 +123,6 @@ def make_status_text(level_number):
 
         machine_name = machine["type"]
         laundry_data += '{}  {}\n'.format(status_emoji, machine_name)
-
-    # TODO: This should be the backend server time instead
-    current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y %H:%M:%S')
 
     return "<b>Showing statuses for Level {}</b>:\n\n" \
            "{}\n" \
