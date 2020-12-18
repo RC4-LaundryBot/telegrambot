@@ -31,10 +31,12 @@ DATA = MockData()
 
 
 # Building menu for every occasion
-def build_menu(buttons, n_cols, header_buttons=None, footer_buttons=None):
+def build_menu(buttons, n_cols, header_buttons=None, reminder_buttons=None, footer_buttons=None):
     menu = [buttons[i:i + n_cols] for i in range(0, len(buttons), n_cols)]
     if header_buttons:
         menu.insert(0, header_buttons)
+    if reminder_buttons:
+        menu.append(reminder_buttons)
     if footer_buttons:
         menu.append(footer_buttons)
     return InlineKeyboardMarkup(menu)
@@ -82,10 +84,26 @@ def set_pinned_level(bot, update, user_data):
 
 # Generate a Hour Minute Second template
 class DeltaTemplate(Template):
+    ''' Set a template for input data '''
     delimiter = "%"
 
 # Change from timedelta to H M S format without unecessary microsecond
 def strfdelta(tdelta, fmt):
+    ''' Format timedelta object to the format of string fmt
+
+    Parameter
+    ----------
+        tdelta: datetime.timedelta
+            The datetime.timedelta object that needs to be formatted
+        fmt: str
+            The format string (eg. %H:%M:%S)
+    
+    Returns
+    -------
+        str
+            a formmated time string
+    '''
+
     d = {"D": tdelta.days}
     hours, rem = divmod(tdelta.seconds, 3600)
     minutes, seconds = divmod(rem, 60)
@@ -151,7 +169,13 @@ def make_status_menu(level_number):
         callback_data='Help'
     )]
 
-    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=help_button)
+    reminder_button = [InlineKeyboardButton(
+        text="Set a reminder",
+        callback_data="remind"
+    )]
+    
+
+    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=help_button, reminder_buttons=reminder_button)
 
 
 def level_status(bot, update, user_data, from_pinned_level=False, new_message=False):
