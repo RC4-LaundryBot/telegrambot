@@ -231,6 +231,39 @@ def help_menu(bot, update, user_data, from_pinned_level=False, new_message=False
 def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"', update, error)
 
+def remind(bot, update, user_data):
+
+
+    query = update.callback_query
+    level = user_data['check_level']
+    in_use = []
+    selection = []
+    
+    #Mock test
+    machine_data = DATA.getStatuses(level)
+    
+    question = "Which machine on Level {} do you like to set a reminder for?\n".format(level)
+
+    for machine in machine_data:
+        if machine["status"] != 0:
+            label = machine['type']
+            data = MACHINES_INFO[label]
+            button = InlineKeyboardButton(text=label, callback_data=data)
+            selection.append(button)
+
+    back_button = [InlineKeyboardButton(
+        text='Back',
+        callback_data='check_L{}'.format(level)
+    )]
+
+    bot.edit_message_text(
+        text=question,
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+        reply_markup=build_menu(selection, len(selection), footer_buttons=back_button),
+        parse_mode=ParseMode.HTML
+        )
+
 
 def main():
     TOKEN = os.environ['RC4LAUNDRYBOT_TOKEN']
@@ -238,6 +271,8 @@ def main():
     updater = Updater(TOKEN)
     dp = updater.dispatcher
 
+    # dp.add_handler used to receive back querry
+    # to call a function using a button, passed in pattern= callback_data
     dp.add_handler(CommandHandler('start', check_handler, pass_user_data=True))
     dp.add_handler(CallbackQueryHandler(set_pinned_level,
                                         pattern='^set_L(5|8|11|14|17)$',
@@ -247,6 +282,9 @@ def main():
                                         pass_user_data=True))
     dp.add_handler(CallbackQueryHandler(help_menu,
                                         pattern='Help',
+                                        pass_user_data=True))
+    dp.add_handler(CallbackQueryHandler(remind, 
+                                        pattern='remind',
                                         pass_user_data=True))
     dp.add_error_handler(error)
 
