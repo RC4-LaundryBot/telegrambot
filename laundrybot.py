@@ -13,6 +13,28 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 from data import MockData
 from string import Template
 
+# This import is for communicating with google sheet######
+from Google import Create_Service
+
+##########################################################
+
+# Only modify the sheet_ID when needed, else no need to change anything
+
+CLIENT_SECRET_FILE = "credentials.json"
+API_NAME = "sheets"
+API_VERSION = "v4"
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+service = Create_Service(CLIENT_SECRET_FILE, API_NAME, API_VERSION, SCOPES)
+
+SHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
+
+sheet = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+
+################################################################################
+
+
+
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -232,11 +254,20 @@ def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"', update, error)
 
 def remind(bot, update, user_data):
+    ''' Set up reminder function interface
 
+        User will be bring to a prompt which show machines that are in used
+        and can be set a reminder for (machines that are not in used cannot
+        be set a reminder function).
+
+        When machine buttons is clicked:
+            data will be sent to add_reminder()
+        When back button is clicked:
+            user will be sent back to origianl prompt
+    '''
 
     query = update.callback_query
     level = user_data['check_level']
-    in_use = []
     selection = []
     
     #Mock test
@@ -244,10 +275,11 @@ def remind(bot, update, user_data):
     
     question = "Which machine on Level {} do you like to set a reminder for?\n".format(level)
 
+    # Put in-use machines in selection list
     for machine in machine_data:
         if machine["status"] != 0:
             label = machine['type']
-            data = MACHINES_INFO[label]
+            data = machine['type']
             button = InlineKeyboardButton(text=label, callback_data=data)
             selection.append(button)
 
@@ -262,6 +294,56 @@ def remind(bot, update, user_data):
         message_id=query.message.message_id,
         reply_markup=build_menu(selection, len(selection), footer_buttons=back_button),
         parse_mode=ParseMode.HTML
+        )
+
+def add_reminder(bot, update, user_data):
+    ''' Append current time, username, level and machine to Google sheet
+
+        Append current date, current time, username, level and machine data to Google sheet
+        to save reminders. The data is saved in Laundrybot sheet under Reminder tab.
+    '''
+    query = update.callback_query
+    level = user_data['check_level']
+    username = query['from_user']['username']
+    data = query['data']
+    current_date = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y')
+    current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%H:%M:%S')
+    
+    #Mock test
+    machine_data = DATA.getStatuses(level)
+
+    notice = 'A reminder has been set for Level {} {}'.format(level,data)
+
+    # Set up value to be append to google sheet
+    WORKSHEET_NAME = 'Reminder!'
+    cell_range_insert = 'A1'
+    values = [
+    [current_date,current_time,username,level,data]
+    ]
+    value_range_body = {
+        'majorDimension': 'ROWS',
+        'values': values
+    }
+
+    # Append to the google sheet
+    service.spreadsheets().values().append(
+        spreadsheetId=SHEET_ID,
+        valueInputOption= 'USER_ENTERED',
+        range= WORKSHEET_NAME+cell_range_insert,
+        body= value_range_body
+    ).execute()
+
+    back_button = [InlineKeyboardButton(
+        text='Back',
+        callback_data='check_L{}'.format(level)
+    )]
+
+    bot.edit_message_text(
+        text=notice,
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+        reply_markup=build_menu(back_button, 1),
+        parse_mode=ParseMode.HTML,
         )
 
 
@@ -286,6 +368,10 @@ def main():
     dp.add_handler(CallbackQueryHandler(remind, 
                                         pattern='remind',
                                         pass_user_data=True))
+    dp.add_handler(CallbackQueryHandler(add_reminder, 
+                                        pattern='^(washer-coin|washer-ezlink|dryer-ezlink|dryer-coin)$',
+                                        pass_user_data=True))                                   
+    
     dp.add_error_handler(error)
 
     updater.start_polling()
