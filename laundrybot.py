@@ -1,6 +1,7 @@
 # Laundry Bot for RC4, current telegram handle: @RC4LaundryBot
 
 import os
+import csv
 import re
 import logging
 import requests
@@ -12,28 +13,7 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 
 from data import MockData
 from string import Template
-
-# This import is for communicating with google sheet######
-from Google import Create_Service
-
-##########################################################
-
-# Only modify the sheet_ID when needed, else no need to change anything
-
-CLIENT_SECRET_FILE = "credentials.json"
-API_NAME = "sheets"
-API_VERSION = "v4"
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-
-service = Create_Service(CLIENT_SECRET_FILE, API_NAME, API_VERSION, SCOPES)
-
-SHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
-
-sheet = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
-
-################################################################################
-
-
+import pandas as pd
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -303,39 +283,29 @@ def add_reminder(bot, update, user_data):
         to save reminders. The data is saved in Laundrybot sheet under Reminder tab.
     '''
     query = update.callback_query
-    level = user_data['check_level']
-    username = query['from_user']['username']
-    data = query['data']
-    current_date = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y')
-    current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%H:%M:%S')
     
-    #Mock test
-    machine_data = DATA.getStatuses(level)
-
-    notice = 'A reminder has been set for Level {} {}'.format(level,data)
-
-    # Set up value to be append to google sheet
-    WORKSHEET_NAME = 'Reminder!'
-    cell_range_insert = 'A1'
-    values = [
-    [current_date,current_time,username,level,data]
-    ]
-    value_range_body = {
-        'majorDimension': 'ROWS',
-        'values': values
+    input_data = {
+        'current_date': datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y'),
+        'current_time': datetime.fromtimestamp(time.time() + 8*3600).strftime('%H:%M:%S'),
+        'username': query['from_user']['username'],
+        'level': user_data['check_level'],
+        'machine': query['data'],
     }
 
-    # Append to the google sheet
-    service.spreadsheets().values().append(
-        spreadsheetId=SHEET_ID,
-        valueInputOption= 'USER_ENTERED',
-        range= WORKSHEET_NAME+cell_range_insert,
-        body= value_range_body
-    ).execute()
+    #Mock test
+    machine_data = DATA.getStatuses(input_data['level'])
+
+    notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine'])
+
+    with open('reminder.csv', "a",newline='') as file:
+        file_reader = csv.reader(file,delimiter=',')
+        fieldsnames = ['current_date','current_time','username','level','machine']
+        writer = csv.DictWriter(file,fieldnames=fieldsnames)
+        writer.writerow(input_data)
 
     back_button = [InlineKeyboardButton(
         text='Back',
-        callback_data='check_L{}'.format(level)
+        callback_data='check_L{}'.format(input_data['level'])
     )]
 
     bot.edit_message_text(
