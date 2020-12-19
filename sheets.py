@@ -10,7 +10,7 @@ def add_response(username, level, response):
     # Authorize requests to read/write
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     SPREADSHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
-    RANGE_NAME = 'Sheet1!A2:D'
+    RANGE_NAME = 'Error!A2:D'
 
     creds = None
     
