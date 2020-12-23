@@ -240,7 +240,7 @@ def get_consent_end(bot, update, user_data):
     if user_input == 'Yes':
         text = 'Huge thanks!\n'
         username = update.message.chat.username
-        level = user_data['check_level']
+        level = user_data['pinned_level']
         response = user_response.pop(chat_id)
         add_response(username, level, response)
     else:
