@@ -7,8 +7,9 @@ import requests
 from datetime import datetime
 import time
 from emoji import emojize
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, ConversationHandler, Filters
+from sheets import add_response
 
 from data import MockData
 
@@ -16,6 +17,7 @@ from data import MockData
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR) # Silence oauth2client ImportError
 
 # Initialize global variables
 RC_URL = "https://us-central1-rc4laundrybot.cloudfunctions.net/readData/RC4-"
@@ -26,6 +28,7 @@ MACHINES_INFO = {
     'dryer-ezlink': 'Dryer 1',
     'dryer-coin': 'Dryer 2'
 }
+user_response = ''
 DATA = MockData()
 
 
@@ -136,7 +139,14 @@ def make_status_menu(level_number):
         callback_data='Help'
     )]
 
-    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=help_button)
+    report_button = [InlineKeyboardButton(
+        text='Something wrong?',
+        callback_data='Report'
+    )]
+
+    header_button = help_button + report_button
+
+    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=header_button)
 
 
 def level_status(bot, update, user_data, from_pinned_level=False, new_message=False):
@@ -188,6 +198,58 @@ def help_menu(bot, update, user_data, from_pinned_level=False, new_message=False
         parse_mode=ParseMode.HTML
         )
 
+def report(bot, update, user_data, from_pinned_level=False, new_message=False):
+    query = update.callback_query
+
+    text = 'Is there anything wrong? Tell me in a couple of sentences.\n'
+    text += 'Elaborate on any incorrect information!'
+    bot.send_message(
+        text = text,
+        chat_id = query.message.chat_id
+    )
+    return 1
+
+def get_response_ask_consent(bot, update, user_data):
+    global user_response
+    
+    user_input = update.message.text
+    user_response = user_input
+    query = update.callback_query
+
+    yes_button = KeyboardButton(text='Yes', callback_data='Yes')
+    no_button = KeyboardButton(text='No', call_back='No')
+    consent_button = [yes_button, no_button]
+
+    text = 'Thank you for reporting!\n'
+    text += 'Do you consent to give this information along with your telegram use ID to the developer team?'
+
+    bot.send_message(
+        text = text,
+        chat_id=update.message.chat_id,
+        reply_markup=ReplyKeyboardMarkup(keyboard=[consent_button], one_time_keyboard=True)
+    )
+
+    return 2
+
+def get_consent_end(bot, update, user_data):
+    user_input = update.message.text
+    query = update.callback_query
+
+    if user_input == 'Yes':
+        text = 'Huge thanks!\n'
+        username = update.message.chat.username
+        level = user_data['check_level']
+        add_response(username, level, user_response)
+    else:
+        text = 'Okay, your response was not recorded.\n'
+    text += 'Enter /start to restart the bot.'
+
+    bot.send_message(
+        text = text,
+        chat_id = update.message.chat_id
+    )
+
+    return ConversationHandler.END
 
 def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"', update, error)
@@ -209,6 +271,13 @@ def main():
     dp.add_handler(CallbackQueryHandler(help_menu,
                                         pattern='Help',
                                         pass_user_data=True))
+    dp.add_handler(ConversationHandler(
+        [CallbackQueryHandler(report, pattern="Report", pass_user_data=True)],
+        {
+            1 : [MessageHandler(Filters.text, get_response_ask_consent, pass_user_data=True)],
+            2 : [MessageHandler(Filters.text, get_consent_end, pass_user_data=True)]
+        },
+        []))
     dp.add_error_handler(error)
 
     updater.start_polling()
