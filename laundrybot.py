@@ -1,6 +1,7 @@
 # Laundry Bot for RC4, current telegram handle: @RC4LaundryBot
 
 import os
+import csv
 import re
 import logging
 import requests
@@ -12,6 +13,8 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageH
 from sheets import add_response
 
 from data import MockData
+from string import Template
+import pandas as pd
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -33,10 +36,12 @@ DATA = MockData()
 
 
 # Building menu for every occasion
-def build_menu(buttons, n_cols, header_buttons=None, footer_buttons=None):
+def build_menu(buttons, n_cols, header_buttons=None, reminder_buttons=None, footer_buttons=None):
     menu = [buttons[i:i + n_cols] for i in range(0, len(buttons), n_cols)]
     if header_buttons:
         menu.insert(0, header_buttons)
+    if reminder_buttons:
+        menu.append(reminder_buttons)
     if footer_buttons:
         menu.append(footer_buttons)
     return InlineKeyboardMarkup(menu)
@@ -82,10 +87,44 @@ def set_pinned_level(bot, update, user_data):
     level_status(bot, update, user_data, from_pinned_level=True)
 
 
+# Generate a Hour Minute Second template
+class DeltaTemplate(Template):
+    ''' Set a template for input data '''
+    delimiter = "%"
+
+# Change from timedelta to H M S format without unecessary microsecond
+def strfdelta(tdelta, fmt):
+    ''' Format timedelta object to the format of string fmt
+
+    Parameter
+    ----------
+        tdelta: datetime.timedelta
+            The datetime.timedelta object that needs to be formatted
+        fmt: str
+            The format string (eg. %H:%M:%S)
+    
+    Returns
+    -------
+        str
+            a formmated time string
+    '''
+
+    d = {"D": tdelta.days}
+    hours, rem = divmod(tdelta.seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    d["H"] = '{:02d}'.format(hours)
+    d["M"] = '{:02d}'.format(minutes)
+    d["S"] = '{:02d}'.format(seconds)
+    t = DeltaTemplate(fmt)
+    return t.substitute(**d)
+
+
 # Carves the status text for each level
 def make_status_text(level_number):
     laundry_data = ''
     floor_url = RC_URL + str(level_number)
+    # TODO: This should be the backend server time instead
+    current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y %H:%M:%S')
 
     # Get Request to the database backend
     # machine_status = requests.get(floor_url).json()
@@ -95,20 +134,16 @@ def make_status_text(level_number):
 
     for machine in machine_data: 
         # Get data from back end - time since request/refresh
-        remaining_time = 'mm:ss'
+        remaining_time = datetime.today() - machine["start-time"]
+        remaining_time = strfdelta(remaining_time, '%H:%M:%S')
 
         if machine["status"] == 0:
             status_emoji = etick
-        elif machine["status"] == 1:
-            status_emoji = ecross
         else:
             status_emoji = f'{ehourglass} {remaining_time} |'
 
         machine_name = machine["type"]
         laundry_data += '{}  {}\n'.format(status_emoji, machine_name)
-
-    # TODO: This should be the backend server time instead
-    current_time = datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y %H:%M:%S')
 
     return "<b>Showing statuses for Level {}</b>:\n\n" \
            "{}\n" \
@@ -139,14 +174,19 @@ def make_status_menu(level_number):
         callback_data='Help'
     )]
 
+    reminder_button = [InlineKeyboardButton(
+        text="Set a reminder",
+        callback_data="remind"
+    )]
+
     report_button = [InlineKeyboardButton(
         text='Something wrong?',
         callback_data='Report'
     )]
 
-    header_button = help_button + report_button
+    header_buttons = help_button + report_button
 
-    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=header_button)
+    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=header_buttons, reminder_buttons=reminder_button)
 
 
 def level_status(bot, update, user_data, from_pinned_level=False, new_message=False):
@@ -254,6 +294,89 @@ def get_consent_end(bot, update, user_data):
 def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"', update, error)
 
+def remind(bot, update, user_data):
+    ''' Set up reminder function interface
+
+        User will be bring to a prompt which show machines that are in used
+        and can be set a reminder for (machines that are not in used cannot
+        be set a reminder function).
+
+        When machine buttons is clicked:
+            data will be sent to add_reminder()
+        When back button is clicked:
+            user will be sent back to origianl prompt
+    '''
+
+    query = update.callback_query
+    level = user_data['check_level']
+    selection = []
+    
+    #Mock test
+    machine_data = DATA.getStatuses(level)
+    
+    question = "Which machine on Level {} do you like to set a reminder for?\n".format(level)
+
+    # Put in-use machines in selection list
+    for machine in machine_data:
+        if machine["status"] != 0:
+            label = machine['type']
+            data = machine['type']
+            button = InlineKeyboardButton(text=label, callback_data=data)
+            selection.append(button)
+
+    back_button = [InlineKeyboardButton(
+        text='Back',
+        callback_data='check_L{}'.format(level)
+    )]
+
+    bot.edit_message_text(
+        text=question,
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+        reply_markup=build_menu(selection, len(selection), footer_buttons=back_button),
+        parse_mode=ParseMode.HTML
+        )
+
+def add_reminder(bot, update, user_data):
+    ''' Append current time, username, level and machine to Google sheet
+
+        Append current date, current time, username, level and machine data to Google sheet
+        to save reminders. The data is saved in Laundrybot sheet under Reminder tab.
+    '''
+    query = update.callback_query
+    
+    input_data = {
+        'current_date': datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y'),
+        'current_time': datetime.fromtimestamp(time.time() + 8*3600).strftime('%H:%M:%S'),
+        'username': query['from_user']['username'],
+        'level': user_data['check_level'],
+        'machine': query['data'],
+    }
+
+    #Mock test
+    machine_data = DATA.getStatuses(input_data['level'])
+
+    notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine'])
+
+    with open('reminder.csv', "a",newline='') as file:
+        file_reader = csv.reader(file,delimiter=',')
+        fieldsnames = ['current_date','current_time','username','level','machine']
+        writer = csv.DictWriter(file,fieldnames=fieldsnames)
+        writer.writerow(input_data)
+
+    back_button = [InlineKeyboardButton(
+        text='Back',
+        callback_data='check_L{}'.format(input_data['level'])
+    )]
+
+    bot.edit_message_text(
+        text=notice,
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+        reply_markup=build_menu(back_button, 1),
+        parse_mode=ParseMode.HTML,
+        )
+
 
 def main():
     TOKEN = os.environ['RC4LAUNDRYBOT_TOKEN']
@@ -261,6 +384,8 @@ def main():
     updater = Updater(TOKEN)
     dp = updater.dispatcher
 
+    # dp.add_handler used to receive back querry
+    # to call a function using a button, passed in pattern= callback_data
     dp.add_handler(CommandHandler('start', check_handler, pass_user_data=True))
     dp.add_handler(CallbackQueryHandler(set_pinned_level,
                                         pattern='^set_L(5|8|11|14|17)$',
@@ -271,11 +396,17 @@ def main():
     dp.add_handler(CallbackQueryHandler(help_menu,
                                         pattern='Help',
                                         pass_user_data=True))
+    dp.add_handler(CallbackQueryHandler(remind, 
+                                        pattern='remind',
+                                        pass_user_data=True))
+    dp.add_handler(CallbackQueryHandler(add_reminder, 
+                                        pattern='^(washer-coin|washer-ezlink|dryer-ezlink|dryer-coin)$',
+                                        pass_user_data=True))                                   
     dp.add_handler(ConversationHandler(
         [CallbackQueryHandler(report, pattern="Report", pass_user_data=True)],
         {
-            1 : [MessageHandler(Filters.text, get_response_ask_consent, pass_user_data=True)],
-            2 : [MessageHandler(Filters.text, get_consent_end, pass_user_data=True)]
+            1: [MessageHandler(Filters.text, get_response_ask_consent, pass_user_data=True)],
+            2: [MessageHandler(Filters.text, get_consent_end, pass_user_data=True)]
         },
         []))
     dp.add_error_handler(error)
