@@ -14,7 +14,7 @@ def add_response(username, level, response):
 
     creds = None
     
-    if os.path.exists('token.pickle'):
+    if os.path.exists('../token.pickle'):
         with open('../token.pickle', 'rb') as token:
             creds = pickle.load(token)
 

@@ -5,6 +5,7 @@ import csv
 import re
 import logging
 import requests
+import threading
 from datetime import datetime
 import time
 from emoji import emojize
@@ -12,6 +13,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode, Repl
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, ConversationHandler, Filters
 from sheets import add_response
 
+from reminders import ReminderList
 from data import MockData
 from string import Template
 import pandas as pd
@@ -33,6 +35,7 @@ MACHINES_INFO = {
 }
 user_response = ''
 DATA = MockData()
+REMINDERS = ReminderList()
 
 
 # Building menu for every occasion
@@ -314,7 +317,8 @@ def remind(bot, update, user_data):
     #Mock test
     machine_data = DATA.getStatuses(level)
     
-    question = "Which machine on Level {} do you like to set a reminder for?\n".format(level)
+    question = "Which machine on Level {} do you like to set a reminder for?\n".format(level) \
+    + "You can only set reminders for busy machines."
 
     # Put in-use machines in selection list
     for machine in machine_data:
@@ -345,24 +349,38 @@ def add_reminder(bot, update, user_data):
     '''
     query = update.callback_query
     
+    # User inputs
     input_data = {
         'current_date': datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y'),
         'current_time': datetime.fromtimestamp(time.time() + 8*3600).strftime('%H:%M:%S'),
         'username': query['from_user']['username'],
         'level': user_data['check_level'],
-        'machine': query['data'],
+        'machine-type': query['data'],
     }
 
-    #Mock test
-    machine_data = DATA.getStatuses(input_data['level'])
+    # Mock data for temporary use
+    machine_data = list(
+        filter(
+            lambda x: x['type'] == input_data['machine-type'], 
+            DATA.getStatuses(input_data['level'])
+            )
+        ).pop()
 
-    notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine'])
+    notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine-type'])
 
-    with open('../reminder.csv', "a",newline='') as file:
-        file_reader = csv.reader(file,delimiter=',')
-        fieldsnames = ['current_date','current_time','username','level','machine']
-        writer = csv.DictWriter(file,fieldnames=fieldsnames)
-        writer.writerow(input_data)
+    # The following is the format of reminders logging
+    REMINDERS.append({
+        'username': query['from_user']['username'],
+        'chat_id': query.message.chat_id,
+        'input_data': input_data,
+        'machine_data': machine_data
+    })
+
+    # with open('../reminder.csv', "a",newline='') as file:
+    #     file_reader = csv.reader(file,delimiter=',')
+    #     fieldsnames = ['current_date','current_time','username','level','machine-type']
+    #     writer = csv.DictWriter(file,fieldnames=fieldsnames)
+    #     writer.writerow(input_data)
 
     back_button = [InlineKeyboardButton(
         text='Back',
@@ -377,11 +395,8 @@ def add_reminder(bot, update, user_data):
         parse_mode=ParseMode.HTML,
         )
 
+def run_bot(updater):
 
-def main():
-    TOKEN = os.environ['RC4LAUNDRYBOT_TOKEN']
-
-    updater = Updater(TOKEN)
     dp = updater.dispatcher
 
     # dp.add_handler used to receive back querry
@@ -413,6 +428,18 @@ def main():
 
     updater.start_polling()
     updater.idle()
+
+def main():
+
+    TOKEN = os.environ['RC4LAUNDRYBOT_TOKEN']
+
+    updater = Updater(TOKEN)
+
+    t = threading.Thread(target=REMINDERS.poll, args=(updater.bot,))
+    t.start()
+    
+    run_bot(updater)
+
 
 
 if __name__ == '__main__':
