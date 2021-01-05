@@ -1,3 +1,7 @@
+# native
+token.pickle
+reminder.csv
+
 # virtual env
 bin/
 pyvenv.cfg
