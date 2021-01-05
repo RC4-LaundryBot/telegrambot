@@ -19,7 +19,7 @@ class MockData():
             datetime.now() - timedelta(seconds=300),
             datetime.now() - timedelta(seconds=400)
             ]
-        statuses = [0, 0, 1, 2]
+        statuses = [0, 2, 1, 2]
         machine_durations = [30, 30, 40, 40]
 
         return [
