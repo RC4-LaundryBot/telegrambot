@@ -358,7 +358,7 @@ def add_reminder(bot, update, user_data):
 
     notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine'])
 
-    with open('reminder.csv', "a",newline='') as file:
+    with open('../reminder.csv', "a",newline='') as file:
         file_reader = csv.reader(file,delimiter=',')
         fieldsnames = ['current_date','current_time','username','level','machine']
         writer = csv.DictWriter(file,fieldnames=fieldsnames)
