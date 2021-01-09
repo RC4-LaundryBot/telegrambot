@@ -1,3 +1,4 @@
+import json
 import pickle
 import os.path
 from googleapiclient.discovery import build
@@ -23,10 +24,17 @@ def authorize_creds():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                os.path.join(FILE_PATH, '../credentials.json'), SCOPES)
-            creds = flow.run_local_server(port=0)
+        elif not os.path.exists(os.path.join(FILE_PATH, '../credentials.json')):
+            json_str = os.environ.get('CREDENTIALS_JSON')
+            print(json.dumps(json.loads(json_str), indent=4, sort_keys=True))
+            with open(os.path.join(FILE_PATH, '../credentials.json'), 'w') as f:
+                f.write(json_str)
+                f.close()
+
+        flow = InstalledAppFlow.from_client_secrets_file(
+            os.path.join(FILE_PATH, '../credentials.json'), SCOPES)
+        creds = flow.run_local_server(port=0)
+
         # Save the credentials for the next run
         with open(os.path.join(FILE_PATH, '../token.pickle'), 'wb') as token:
             pickle.dump(creds, token)
