@@ -6,6 +6,9 @@ from google.auth.transport.requests import Request
 from datetime import datetime
 
 FILE_PATH = os.path.dirname(__file__)
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SPREADSHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
+RANGE_NAME = 'Error!A2:D'
 
 
 def authorize_creds():
@@ -34,17 +37,13 @@ def authorize_creds():
 def add_response(username, level, response):
 
     # Authorize requests to read/write
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    SPREADSHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
-    RANGE_NAME = 'Error!A2:D'
-
     creds = authorize_creds()
 
     service = build('sheets', 'v4', credentials=creds)
 
     # Call the Sheets API
     sheet = service.spreadsheets()
-    
+
     response_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     values = [[response_time, username, level, response]]
     body = {'values': values}
@@ -53,7 +52,7 @@ def add_response(username, level, response):
     result = sheet.values().append(
         spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME,
         valueInputOption='RAW', body=body).execute()
-    
+
 
 if __name__ == '__main__':
     print("Testing credentials...")
