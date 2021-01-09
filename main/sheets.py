@@ -33,7 +33,7 @@ def authorize_creds():
 
         flow = InstalledAppFlow.from_client_secrets_file(
             os.path.join(FILE_PATH, '../credentials.json'), SCOPES)
-        creds = flow.run_local_server(port=0)
+        creds = flow.run_console()
 
         # Save the credentials for the next run
         with open(os.path.join(FILE_PATH, '../token.pickle'), 'wb') as token:
