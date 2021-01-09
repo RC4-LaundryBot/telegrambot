@@ -5,17 +5,15 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from datetime import datetime
 
-def add_response(username, level, response):
+FILE_PATH = os.path.dirname(__file__)
 
-    # Authorize requests to read/write
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    SPREADSHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
-    RANGE_NAME = 'Error!A2:D'
+
+def authorize_creds():
 
     creds = None
-    
-    if os.path.exists('../token.pickle'):
-        with open('../token.pickle', 'rb') as token:
+
+    if os.path.exists(os.path.join(FILE_PATH, '../token.pickle')):
+        with open(os.path.join(FILE_PATH, '../token.pickle'), 'rb') as token:
             creds = pickle.load(token)
 
     # If there are no (valid) credentials available, let the user log in.
@@ -27,8 +25,20 @@ def add_response(username, level, response):
                 'credentials.json', SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('../token.pickle', 'wb') as token:
+        with open(os.path.join(FILE_PATH, '../token.pickle'), 'wb') as token:
             pickle.dump(creds, token)
+
+    return creds
+
+
+def add_response(username, level, response):
+
+    # Authorize requests to read/write
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+    SPREADSHEET_ID = '1Wu2fL9DMmroz4PM7iNE-wf7IfqEAho4ArJ9L-zzxrxo'
+    RANGE_NAME = 'Error!A2:D'
+
+    creds = authorize_creds()
 
     service = build('sheets', 'v4', credentials=creds)
 
@@ -43,3 +53,8 @@ def add_response(username, level, response):
     result = sheet.values().append(
         spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME,
         valueInputOption='RAW', body=body).execute()
+    
+
+if __name__ == '__main__':
+    print("Testing credentials...")
+    print(authorize_creds())
