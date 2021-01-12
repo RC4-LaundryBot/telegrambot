@@ -39,15 +39,37 @@ REMINDERS = ReminderList()
 
 
 # Building menu for every occasion
-def build_menu(buttons, n_cols, header_buttons=None, reminder_buttons=None, footer_buttons=None):
+def build_menu(buttons, n_cols, header_buttons=None, row_buttons=None,
+               footer_buttons=None):
     menu = [buttons[i:i + n_cols] for i in range(0, len(buttons), n_cols)]
     if header_buttons:
         menu.insert(0, header_buttons)
-    if reminder_buttons:
-        menu.append(reminder_buttons)
+    if row_buttons:
+        for b in row_buttons:
+            menu.append(b)
     if footer_buttons:
         menu.append(footer_buttons)
     return InlineKeyboardMarkup(menu)
+
+
+# Checks whether 'pinned_level' is null
+def pinned_level_exists(bot, update, user_data, chat_id=None):
+    if 'pinned_level' in user_data:
+        return True
+ 
+    text = "The message you clicked is outdated. Please enter /start first before proceeding."
+    if chat_id:
+        bot.send_message(
+            text=text,
+            chat_id=chat_id
+        )
+    else:
+        bot.send_message(
+            text=text,
+            chat_id=update.callback_query.message.chat_id
+        )
+
+    return False
 
 
 # Building emojis for every occasion
@@ -56,10 +78,17 @@ etick = emojize(":white_check_mark: ", use_aliases=True)
 ecross = emojize(":x: ", use_aliases=True)
 esoon = emojize(":soon: ", use_aliases=True)
 ehourglass = emojize(":hourglass:", use_aliases=True)
+ebarchart = emojize(':bar_chart:', use_aliases=True)
+ealarm = emojize(':alarm_clock:', use_aliases=True)
+erefresh = emojize(':arrows_counterclockwise:', use_aliases=True)
+equestion = emojize(':question:', use_aliases=True)
 
 
 # start command initializes:
 def check_handler(bot, update, user_data):
+
+    logging.info("Checking handler of chat id {}".format(update.message.chat_id))
+
     # user = update.message.from_user
     if 'pinned_level' in user_data:
         level_status(bot, update, user_data,
@@ -69,6 +98,9 @@ def check_handler(bot, update, user_data):
 
 
 def ask_level(bot, update):
+
+    logging.info("Ask level of chat id {}".format(update.message.chat_id))
+
     level_text = "Heyyo! I am RC4's Laundry Bot. <i>As I am currently in [BETA] mode, "\
         "I can only show details for Ursa floor.</i>\n\n<b>Which laundry level do you wish to check?</b>"
     level_buttons = []
@@ -83,9 +115,12 @@ def ask_level(bot, update):
 
 
 def set_pinned_level(bot, update, user_data):
+
     query = update.callback_query
     level = int(re.match('^set_L(5|8|11|14|17)$', query.data).group(1))
     user_data['pinned_level'] = level
+    
+    logging.info("Set chat id {} pinned level as {}".format(query.message.chat_id, level))
 
     level_status(bot, update, user_data, from_pinned_level=True)
 
@@ -168,7 +203,7 @@ def make_status_menu(level_number):
         level_buttons.append(button)
 
     refresh_button = [InlineKeyboardButton(
-        text='Refresh',
+        text='Refresh {}'.format(erefresh),
         callback_data='check_L{}'.format(level_number)
     )]
 
@@ -177,35 +212,58 @@ def make_status_menu(level_number):
         callback_data='Help'
     )]
 
-    reminder_button = [InlineKeyboardButton(
-        text="Set a reminder",
-        callback_data="remind"
-    )]
-
     report_button = [InlineKeyboardButton(
         text='Something wrong?',
         callback_data='Report'
     )]
 
+    reminder_button = [InlineKeyboardButton(
+        text="Set a reminder {}".format(ealarm),
+        callback_data="remind"
+    )]
+
+    insights_button = [InlineKeyboardButton(
+        text="Get Chart Insights {}".format(ebarchart),
+        callback_data="insight"
+    )]
+
+    row_buttons = [reminder_button, insights_button]
+
     header_buttons = help_button + report_button
 
-    return build_menu(level_buttons, 5, footer_buttons=refresh_button, header_buttons=header_buttons, reminder_buttons=reminder_button)
+    logging.info("Returning menu")
+
+    return build_menu(level_buttons, 5, footer_buttons=refresh_button,
+                      header_buttons=header_buttons, row_buttons=row_buttons)
 
 
 def level_status(bot, update, user_data, from_pinned_level=False, new_message=False):
+
+    if not pinned_level_exists(bot, update, user_data):
+        return
+
+    logging.info("Chat id {} checks level {} status".format(
+        update.callback_query.message.chat_id,
+        user_data['pinned_level']
+        ))
+
     query = update.callback_query
     if from_pinned_level:
         level = user_data['pinned_level']
     else:
         level = int(re.match('^check_L(5|8|11|14|17)$', query.data).group(1))
 
-    user_data['check_level'] = level
-
     if new_message:
+        logging.info("Chat id {} sent first status message".format(
+            update.callback_query.message.chat_id
+        ))
         update.message.reply_text(text=make_status_text(level),
                                   reply_markup=make_status_menu(level),
                                   parse_mode=ParseMode.HTML)
     else:
+        logging.info("Chat id {} edited status message".format(
+            update.callback_query.message.chat_id
+        ))
         bot.edit_message_text(
             text=make_status_text(level),
             chat_id=query.message.chat_id,
@@ -216,6 +274,10 @@ def level_status(bot, update, user_data, from_pinned_level=False, new_message=Fa
 
 
 def help_menu(bot, update, user_data, from_pinned_level=False, new_message=False):
+
+    if not pinned_level_exists(bot, update, user_data):
+        return
+
     query = update.callback_query
     help_text = "<b>Help</b>\n\n" + "Washer 1 and Dryer 2 accept coins\n" \
         + etick + "= Available / Job done\n" + esoon + "= Job finishing soon\n" + ecross + "= In use\n"
@@ -226,7 +288,7 @@ def help_menu(bot, update, user_data, from_pinned_level=False, new_message=False
         "We appreciate your feedback as we are currently still beta-testing "\
         "in Ursa before launching the college-wide implementation! :)"
 
-    level = user_data['check_level']
+    level = user_data['pinned_level']
 
     help_menu_button = [InlineKeyboardButton(
         text='Back',
@@ -241,7 +303,12 @@ def help_menu(bot, update, user_data, from_pinned_level=False, new_message=False
         parse_mode=ParseMode.HTML
         )
 
+
 def report(bot, update, user_data, from_pinned_level=False, new_message=False):
+
+    if not pinned_level_exists(bot, update, user_data):
+        return
+
     query = update.callback_query
 
     text = 'Is there anything wrong? Tell me in a couple of sentences.\n'
@@ -252,9 +319,10 @@ def report(bot, update, user_data, from_pinned_level=False, new_message=False):
     )
     return 1
 
+
 def get_response_ask_consent(bot, update, user_data):
     global user_response
-    
+
     user_input = update.message.text
     user_response = user_input
     query = update.callback_query
@@ -274,6 +342,7 @@ def get_response_ask_consent(bot, update, user_data):
 
     return 2
 
+
 def get_consent_end(bot, update, user_data):
     user_input = update.message.text
     query = update.callback_query
@@ -281,7 +350,7 @@ def get_consent_end(bot, update, user_data):
     if user_input == 'Yes':
         text = 'Huge thanks!\n'
         username = update.message.chat.username
-        level = user_data['check_level']
+        level = user_data['pinned_level']
         add_response(username, level, user_response)
     else:
         text = 'Okay, your response was not recorded.\n'
@@ -310,8 +379,11 @@ def remind(bot, update, user_data):
             user will be sent back to origianl prompt
     '''
 
+    if not pinned_level_exists(bot, update, user_data):
+        return
+
     query = update.callback_query
-    level = user_data['check_level']
+    level = user_data['pinned_level']
     selection = []
     
     #Mock test
@@ -354,7 +426,7 @@ def add_reminder(bot, update, user_data):
         'current_date': datetime.fromtimestamp(time.time() + 8*3600).strftime('%d %B %Y'),
         'current_time': datetime.fromtimestamp(time.time() + 8*3600).strftime('%H:%M:%S'),
         'username': query['from_user']['username'],
-        'level': user_data['check_level'],
+        'level': user_data['pinned_level'],
         'machine-type': query['data'],
     }
 
@@ -416,7 +488,7 @@ def run_bot(updater):
                                         pass_user_data=True))
     dp.add_handler(CallbackQueryHandler(add_reminder, 
                                         pattern='^(washer-coin|washer-ezlink|dryer-ezlink|dryer-coin)$',
-                                        pass_user_data=True))                                   
+                                        pass_user_data=True))
     dp.add_handler(ConversationHandler(
         [CallbackQueryHandler(report, pattern="Report", pass_user_data=True)],
         {
