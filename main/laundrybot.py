@@ -138,7 +138,7 @@ def make_status_text(level_number):
 
     # Use real data
     machine_data = json.loads(
-        requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+        requests.get(f"http://188.166.181.174:5000/api/levels/{level_number}/statuses").content
     )
 
     for machine in machine_data: 
@@ -326,7 +326,7 @@ def remind(bot, update, user_data):
 
     # Real data
     machine_data = json.loads(
-        requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+        requests.get(f"http://188.166.181.174:5000/api/levels/{level}/statuses").content
     )
 
     
@@ -372,7 +372,7 @@ def add_reminder(bot, update, user_data):
     }
 
     print(
-        requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+        requests.get(f"http://188.166.181.174:5000/api/levels/{input_data['level']}/statuses").content
     )
     # Mock data for temporary use (DEPRECATED)
     machine_data = list(
@@ -386,7 +386,7 @@ def add_reminder(bot, update, user_data):
         filter(
             lambda x: x['type'] == input_data['machine-type'], 
             json.loads(
-                requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+                requests.get(f"http://188.166.181.174:5000/api/levels/{input_data['level']}/statuses").content
             )
         )).pop()
 
