@@ -143,7 +143,8 @@ def make_status_text(level_number):
 
     for machine in machine_data: 
         # Get data from back end - time since request/refresh
-        remaining_time = datetime.today() - machine["start-time"]
+        date_time_str = machine["start-time"]
+        remaining_time = datetime.today() - datetime.strptime(date_time_str, '%Y-%m-%d %H:%M:%S.%f')
         remaining_time = strfdelta(remaining_time, '%H:%M:%S')
 
         if machine["status"] == 0:
@@ -327,6 +328,7 @@ def remind(bot, update, user_data):
     machine_data = json.loads(
         requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
     )
+
     
     question = "Which machine on Level {} do you like to set a reminder for?\n".format(level) \
     + "You can only set reminders for busy machines."
