@@ -133,8 +133,13 @@ def make_status_text(level_number):
     # Get Request to the database backend
     # machine_status = requests.get(floor_url).json()
 
-    # Use mock data
+    # Use mock data (DEPRECATED)
     machine_data = DATA.getStatuses(level_number)
+
+    # Use real data
+    machine_data = json.loads(
+        requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+    )
 
     for machine in machine_data: 
         # Get data from back end - time since request/refresh
@@ -315,8 +320,13 @@ def remind(bot, update, user_data):
     level = user_data['check_level']
     selection = []
     
-    #Mock test
+    # Mock test (DEPRECATED)
     machine_data = DATA.getStatuses(level)
+
+    # Real data
+    machine_data = json.loads(
+        requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+    )
     
     question = "Which machine on Level {} do you like to set a reminder for?\n".format(level) \
     + "You can only set reminders for busy machines."
@@ -362,11 +372,17 @@ def add_reminder(bot, update, user_data):
     print(
         requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
     )
-    # Mock data for temporary use
+    # Mock data for temporary use (DEPRECATED)
     machine_data = list(
         filter(
             lambda x: x['type'] == input_data['machine-type'], 
-            # DATA.getStatuses(input_data['level'])
+            DATA.getStatuses(input_data['level'])
+        )).pop()
+    
+    # Real data
+    machine_data = list(
+        filter(
+            lambda x: x['type'] == input_data['machine-type'], 
             json.loads(
                 requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
             )
