@@ -3,6 +3,7 @@
 import os
 import csv
 import re
+import json
 import logging
 import requests
 import threading
@@ -358,13 +359,18 @@ def add_reminder(bot, update, user_data):
         'machine-type': query['data'],
     }
 
+    print(
+        requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
+    )
     # Mock data for temporary use
     machine_data = list(
         filter(
             lambda x: x['type'] == input_data['machine-type'], 
-            DATA.getStatuses(input_data['level'])
+            # DATA.getStatuses(input_data['level'])
+            json.loads(
+                requests.get("http://188.166.181.174:5000/api/levels/5/statuses").content
             )
-        ).pop()
+        )).pop()
 
     notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine-type'])
 
