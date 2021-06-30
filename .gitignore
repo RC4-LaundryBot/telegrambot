@@ -1,3 +1,12 @@
+# native
+token.pickle
+reminder.csv
+credentials.json
+
+# virtual env
+bin/
+pyvenv.cfg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

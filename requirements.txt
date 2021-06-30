@@ -1,4 +1,7 @@
-python_telegram_bot==10.0.1
-telegram==0.0.1
+python_telegram_bot==12.8
 emoji
 requests
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+pandas

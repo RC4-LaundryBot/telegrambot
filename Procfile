@@ -1,1 +1,1 @@
-bot: python laundrybot.py
+bot: python main/laundrybot.py
