@@ -3,6 +3,7 @@
 import os
 import csv
 import re
+import json
 import logging
 import requests
 import threading
@@ -132,18 +133,24 @@ def make_status_text(level_number):
     # Get Request to the database backend
     # machine_status = requests.get(floor_url).json()
 
-    # Use mock data
+    # Use mock data (DEPRECATED)
     machine_data = DATA.getStatuses(level_number)
+
+    # Use real data
+    machine_data = json.loads(
+        requests.get(f"http://188.166.181.174:5000/api/levels/{level_number}/statuses").content
+    )
 
     for machine in machine_data: 
         # Get data from back end - time since request/refresh
-        remaining_time = datetime.today() - machine["start-time"]
-        remaining_time = strfdelta(remaining_time, '%H:%M:%S')
+        date_time_str = machine["start-time"]
+        remaining_time = datetime.fromtimestamp(time.time() + 8*3600) - datetime.strptime(date_time_str, '%Y-%m-%d %H:%M:%S.%f')
+        remaining_time_str = strfdelta(remaining_time, '%H:%M:%S')
 
         if machine["status"] == 0:
             status_emoji = etick
         else:
-            status_emoji = f'{ehourglass} {remaining_time} |'
+            status_emoji = f'{ehourglass} {remaining_time_str} |'
 
         machine_name = machine["type"]
         laundry_data += '{}  {}\n'.format(status_emoji, machine_name)
@@ -318,8 +325,14 @@ def remind(bot, update, user_data):
     level = user_data['check_level']
     selection = []
     
-    #Mock test
+    # Mock test (DEPRECATED)
     machine_data = DATA.getStatuses(level)
+
+    # Real data
+    machine_data = json.loads(
+        requests.get(f"http://188.166.181.174:5000/api/levels/{level}/statuses").content
+    )
+
     
     question = "Which machine on Level {} do you like to set a reminder for?\n".format(level) \
     + "You can only set reminders for busy machines."
@@ -362,13 +375,24 @@ def add_reminder(bot, update, user_data):
         'machine-type': query['data'],
     }
 
-    # Mock data for temporary use
+    print(
+        requests.get(f"http://188.166.181.174:5000/api/levels/{input_data['level']}/statuses").content
+    )
+    # Mock data for temporary use (DEPRECATED)
     machine_data = list(
         filter(
             lambda x: x['type'] == input_data['machine-type'], 
             DATA.getStatuses(input_data['level'])
+        )).pop()
+    
+    # Real data
+    machine_data = list(
+        filter(
+            lambda x: x['type'] == input_data['machine-type'], 
+            json.loads(
+                requests.get(f"http://188.166.181.174:5000/api/levels/{input_data['level']}/statuses").content
             )
-        ).pop()
+        )).pop()
 
     notice = 'A reminder has been set for Level {} {}'.format(input_data['level'],input_data['machine-type'])
 
